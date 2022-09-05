@@ -1,1 +1,3 @@
 venv
+src/pySnAPI.egg-info
+dist

@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pySnAPI"
+version = "0.0.2"
+authors = [
+  { name="Mannan Bhardwaj", email="mannanb728@gmail.com" },
+]
+description = "A package for speeding up API calls"
+readme = "README.md"
+license = { file="LICENSE" }
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+  'aiohttp',
+  'requests',
+]
+[project.urls]
+"Homepage" = "https://github.com/MannanB/snAPI"
+"Bug Tracker" = "https://github.com/MannanB/snAPI/issues"
