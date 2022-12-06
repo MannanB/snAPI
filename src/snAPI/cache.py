@@ -9,6 +9,7 @@ MRU = 'MRU'  # Most Recently Used
 LFU = 'LFU'  # Least Frequently Used
 RR = 'RR'  # Random Replacement
 
+# TODO: refactor/add data as key
 
 class MemoryCache:
     def __init__(self, cache=None, cache_policy=LRU, cache_size=10):

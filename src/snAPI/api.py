@@ -1,67 +1,57 @@
 import time
 import queue
 import threading
-from .httpreq import *
+from .sessions import *
 from .cache import MemoryCache
 from typing import Optional, Union
 
 PARAMS = 'PARAMS'
 HEADERS = 'HEADERS'
-ROTATE_METHOD_CALLS = 'ROTATE_METHOD_CALLS'
-ROTATE_METHOD_TIME = 'ROTATE_METHOD_TIME'
+AUTH = 'AUTH'
 
-
-class Endpoint:
-    def __init__(self, url, name=None):
+class Key:
+    def __init__(self, key_type=PARAMS, name=None, key=None, username=None, password=None):
+        self.key_type = PARAMS
         self.name = name
-        self.url = url
+        self.key = key
+        self.username = username
+        self.password = password
 
+        # remove the need to specify key_type if user and password are given
+        if self.username and self.password:
+            self.key_type = AUTH
+
+        if self.key_type == PARAMS or self.key_type == HEADERS:
+            if self.name is None:
+                raise ValueError("You must specify key name")
+            elif self.key is None:
+                raise ValueError("You must specify key value")
+        elif self.key_type == AUTH:
+            if self.username is None or self.password is None:
+                raise ValueError("You must specify both username and password for http auth")
+        else:
+            raise ValueError("Invalid key type")
+
+    def apply(self, request):
+        if self.key_type == PARAMS:
+            request.params[self.name] = self.key
+        elif self.key_type == HEADERS:
+            request.headers[self.name] = self.key
+        elif self.key_type == AUTH:
+            request.auth = (self.username, self.password)
 
 class API:
-    def __init__(self,
-                 key_method: int = PARAMS,
-                 use_async: bool = False,
-                 use_cache: bool = True,
-                 cache: MemoryCache = None,
-                 rotate_key: bool = False,
-                 rotate_method: int = ROTATE_METHOD_CALLS,
-                 rotate_max_calls: int = 0,
-                 rotate_max_time: int = 0,
-                 **kwargs) -> None:
+    def __init__(self, key = None, use_async = False, cache = None):
         self.endpoints = {}
         self.session = None
         self.use_async = use_async
 
-        self.rotate_key = rotate_key
-        self.key_idx = 0
-        self.rotate_method = rotate_method
-        self.rotate_max_calls = rotate_max_calls
-        self.rotate_max_time = rotate_max_time
+        self.key = key
 
-        self.key = tuple(kwargs.values())
-        self.key_names = tuple(kwargs.keys())
-        self.key_method = key_method
-
-        self.calls = 0
-        self.last_rotate_time = time.time()
-        if self.rotate_key:
-            if len(self.key) == 0:
-                raise ValueError('No key was given.')
-            for key in self.key:
-                if isinstance(key, str):
-                    raise TypeError('Key rotation requires a list of keys.')
-            self.lock = threading.Lock()
-            self.rotate_thread_queue = queue.Queue()
-            self.rotate_thread = threading.Thread(target=self.rotate_api_key, args=(self.rotate_thread_queue,),daemon=True)
-            self.rotate_thread.start()
-
-        if use_cache:
-            if cache is None:
-                self.cache = MemoryCache()
-            else:
-                self.cache = cache
+        if cache is None:
+            self.cache = MemoryCache()
         else:
-            self.cache = None
+            self.cache = cache
 
         self.session = Session(use_async=self.use_async, cache=self.cache)
 
@@ -88,203 +78,119 @@ class API:
 
     def close(self):
         self.session.close()
-        if self.rotate_key:
-            self.rotate_thread_queue.put(0)  # adding something to the queue disables the while loop
-            self.rotate_thread.join()
-
-    def apply_key(self, dct):
-        if self.rotate_key:
-            with self.lock:
-                self.calls += 1
-
-        for i, name in enumerate(self.key_names):
-            if self.rotate_key:
-                dct[name] = self.key[i][self.key_idx]
-            else:
-                dct[name] = self.key[i]
-        return dct
-
-    def rotate_api_key(self, done_queue):
-        while done_queue.empty():
-            try:
-                with self.lock:
-                    if self.rotate_key:
-                        if self.rotate_method == ROTATE_METHOD_CALLS:
-                            if self.calls >= self.rotate_max_calls:
-                                self.key_idx += 1
-                                self.calls = 0
-                        elif self.rotate_method == ROTATE_METHOD_TIME:
-                            if time.time() - self.last_rotate_time >= self.rotate_max_time:
-                                self.key_idx += 1
-                                self.last_rotate_time = time.time()
-                        if self.key_idx >= len(self.key[0]):
-                            self.key_idx = 0
-            except (KeyboardInterrupt, SystemExit):
-                break
-
 
     def toggle_async(self):
         self.use_async = not self.use_async
         self.session.toggle_async()
 
-    def add_endpoint(self, endpoint: str,
-                     name: Optional[str] = None) -> Endpoint:
-        ep = Endpoint(endpoint, name)
+    def add_endpoint(self, endpoint, name = None, method=METHOD_GET):
         if name is None:
             name = endpoint
-        self.endpoints[name] = ep
-        return ep
+        self.endpoints[name] = (endpoint, method)
+        return endpoint
 
-    def request_endpoint(self, name: Optional[str] = None,
-                         endpoint: Optional[Endpoint] = None,
-                         params: Optional[dict] = None,
-                         headers: Optional[dict] = None,
-                         session: Optional[Session] = None,
-                         retries: int = 1,
-                         retry_delay: Union[int, float] = 1,
-                         use_async: Optional[bool] = None,
-                         ssl: bool = True,
-                         **kwargs) -> Response:
+    def request_endpoint(self, name = None, 
+                         endpoint = None,
+                         params = None,
+                         headers = None,
+                         data=None,
+                         retries = 0,
+                         retry_delay=1,
+                         timeout=300,
+                         **kwargs):
         """
         Request a URL
-        :param name: A specified name for an endpoint
-        :param endpoint: An Endpoint object
+        :param name: (optional) A specified name for an endpoint
+        :param endpoint: (optional) The endpoint url
         :param params: Parameters for call
-        :param headers: Additional headers for call
-        :param session: an httpreq.Session(). Leave none for default session
+        :param headers: Headers for cals
         :param retries: Amount of retries if a call returns a non-200 code
         :param retry_delay: Amount of time between calls (seconds)
-        :param use_async: Whether to use async. Leave none for default
-        :param ssl: Whether to certify with ssl or not
         :return: A Response object
         """
-        if params is None:
-            params = kwargs
-        if headers is None:
-            headers = {}
+
+        # user may supply name or endpoint url.
+        # If url is supplied, but not added, method defaults to get/post depending on data
+
+        method = METHOD_POST
+        if data is None:
+            method = METHOD_GET
         if name is None and endpoint is None:
             raise ValueError('No url was given.')
         elif endpoint is None:
-            endpoint = self.endpoints[name]
-        if self.key_method == PARAMS:
-            params = self.apply_key(params)
-        else:
-            headers = self.apply_key(headers)
-
-        if session is None:
-            session = self.session
-
-        result = session.get(endpoint.url, params=params, headers=headers, retries=retries, retry_delay=retry_delay,
-                             use_async=use_async, ssl=ssl)
+            endpoint, method = self.endpoints[name]
+        if params is None:
+            # use kwargs as parameters
+            params = kwargs
+        request = Request(endpoint, method, params, headers, data)
+        if self.key:
+            self.key.apply(request)
+        result = self.session.request(request, retries=retries, retry_delay=retry_delay, timeout=timeout)
         return result
-    
-    #TODO: make names and endpoints singular
-    def request_endpoints(self, amount: int = 0,
-                          names: Optional[Union[str, list[str]]] = None,
-                          endpoints: Optional[Union[Endpoint, list[Endpoint]]] = None,
-                          params: Optional[Union[dict, list[dict]]] = None,
-                          headers: Optional[Union[dict, list[dict]]] = None,
-                          session: Optional[Session] = None,
-                          max_connections: int = 10,
-                          per: int = 1,
-                          retries: int = 1,
-                          retry_delay: Union[int, float] = 1,
-                          use_async: Optional[bool] = None,
-                          ssl: Optional[bool] = None,
-                          **kwargs) -> list[Response]:
-        """
-        Request many urls at once
-        :param amount: the amount of requests
+
+    def request_endpoints(self, amount,
+                          names=None, 
+                          endpoints=None, 
+                          params=None, 
+                          headers=None,
+                          data=None,
+                          max_conns=10, 
+                          retries=0, 
+                          retry_delay=1, 
+                          timeout=300,
+                          **kwargs):
+        '''Request many urls at once
+        :param amount: The amount of requests
         :param names: A list of names of endpoints
         :param endpoints: A list of Endpoint objects
         :param params: A list of parameters for each call
         :param headers: Additional headers for each call
-        :param session: a httpreq.Session(). Leave none for default session
-        :param max_connections: Maximum amount of asyncronous/concurrent connections
-        :param per: Amount of time between adding more connections
+        :param max_conns: Maximum amount of concurrent connections
         :param retries: Amount of retries if a request returns a non-200 code
         :param retry_delay: Amount of time between retries (seconds)
-        :param use_async: Whether to use async. Leave none for default
-        :param ssl: Whether to certify with ssl or not
         :return: A list of Responses
-        """
-
-        # attempt to get the amount of reqeusts any way possible
-        # The function will take in either a list or a string/dict for names,endpoints,headers,params,etc
+        '''
 
         if names is None and endpoints is None:
             raise ValueError('No url(s) were given.')
 
-        if not amount:
-            if isinstance(names, list):
-                amount = len(names)
-            elif isinstance(endpoints, list):
-                amount = len(endpoints)
-            elif isinstance(params, list):
-                amount = len(params)
-            elif isinstance(headers, list):
-                amount = len(headers)
-            elif len(kwargs) > 0 and isinstance(kwargs[list(kwargs.keys())[0]], list):
-                amount = len(kwargs[list(kwargs.keys())[0]])
-            else:
-                raise ValueError("Amount was not specified in any of the arguments.")
+        method = METHOD_POST
+        if data is None:
+            method = METHOD_GET
 
         if params is None and len(kwargs) > 0:
             params = [{} for _ in range(amount)]
             for key in kwargs.keys():
-                for i in range(len(params)):
+                for i in range(amount):
                     if isinstance(kwargs[key], list):
                         params[i][key] = kwargs[key][i]
                     else:
                         params[i][key] = kwargs[key]
 
-        if isinstance(params, dict):
-            params = [params for _ in range(amount)]
-        if isinstance(headers, dict):
-            params = [headers for _ in range(amount)]
-        if isinstance(names, str):
-            names = [names for _ in range(amount)]
-        if isinstance(endpoints, Endpoint):
-            endpoints = [endpoints for _ in range(amount)]
+        requests = []
+        for i in range(amount):
+            request_param = params
+            request_headers = headers
+            request_data = data
+            request_endpoint = endpoints
+            request_method = method
 
-        # from this point onwards everything should be in a list
+            if isinstance(params, list):
+                request_param = params[i]
+            if isinstance(headers, list):
+                request_headers = params[i]
+            if isinstance(names, list):
+                request_endpoint, method = self.endpoints[names[i]]
+            if isinstance(endpoints, list):
+                request_endpoint = endpoints[i]
+            if isinstance(data, list):
+                request_data = data[i]
 
-        urls = []
-        if not (names is None):
-            for name in names:
-                urls.append(self.endpoints[name].url)
-        else:
-            for endpoint in endpoints:
-                urls.append(endpoint.url)
-        if self.key_method == PARAMS:
-            new = False
-            if params is None:
-                new = True
-                params = []
-            for i in range(amount):
-                if self.key_name in params:
-                    continue
-                if new:
-                    params.append({})
-                params[i] = self.apply_key(params[i])
-        else:
-            new = False
-            if headers is None:
-                new = True
-                headers = []
-            for i in range(amount):
-                if self.key_name in headers:
-                    continue
-                if new:
-                    headers.append({})
-                headers[i] = self.apply_key(headers[i])
+            if request_endpoint is None: # one name, endpoint=none
+                request_endpoint, method = self.endpoints[names]
 
-        if session is None:
-            session = self.session
+            req = Request(request_endpoint, request_method, request_param, request_headers, request_data)
+            self.key.apply(req)
+            requests.append(req)
 
-        if (urls and amount != len(urls)) or (params and amount != len(params)) or (headers and amount != len(headers)):
-            raise ValueError('Inconsistent length of urls, parameters, and/or headers.')
-
-        return session.get_bulk(urls, params=params, headers=headers,
-                                max_connections=max_connections, per=per, retries=retries, retry_delay=retry_delay,
-                                use_async=use_async, ssl=ssl)
+        return self.session.request_bulk(requests)

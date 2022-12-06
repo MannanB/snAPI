@@ -1,6 +1,6 @@
 from .api import *
 from . import cache
-from . import httpreq
+from . import sessions
 import asyncio
 import platform
 
