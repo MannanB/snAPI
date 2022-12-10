@@ -39,6 +39,10 @@ class Request:
         self.data = {} if data is None else data
         self.auth = auth
 
+    def to_hashable(self):
+        # hashable data for efficient caching of data
+        return str((self.url, tuple(self.params.items()), tuple(self.headers.items()), tuple(self.data.item())))
+
 class Session:
     def __init__(self, use_async = False, verify=True, cache=None, headers=None):
         self.use_async = use_async
@@ -101,7 +105,7 @@ class Session:
     def request_sync(self, request, **kwargs):
         # check if request is cached before doing anything
         if self.cache:
-            if cached := self.cache.get(request.url, request.params, request.headers):
+            if cached := self.cache.get(request):
                 return cached
 
         sess = self.get_session_sync()
@@ -124,13 +128,13 @@ class Session:
             else:
                 response = Response(result, result.status_code)
                 if self.cache:
-                    self.cache.add_item(request.url, response, params=request.params, headers=request.headers)
+                    self.cache.add_item(request, response)
                 return response
 
     async def request_async(self, request, **kwargs):
         # check if request is cached before doing anything
         if self.cache:
-            if cached := await self.cache.get_async(request.url, request.params, request.headers):
+            if cached := await self.cache.get_async(request):
                 return cached
 
         sess = self.get_session_async()
@@ -154,7 +158,7 @@ class Session:
                 else:
                     response = Response(result, result.status_code)
                     if self.cache:
-                        await self.cache.add_item_async(request.url, response, params=request.params, header=request.headers)
+                        await self.cache.add_item_async(request, response)
                     return response
 
     def request_bulk(self, requests, use_async=None, max_conns=10, **kwargs):

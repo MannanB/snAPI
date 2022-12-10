@@ -57,22 +57,15 @@ class API:
 
     def __getattr__(self, name):
         if name in self.endpoints:
-            def request_endpoint_filled(amount=1, params=None, headers=None, session=None, retries=1, retry_delay=1,
-                                        use_async=None, ssl=True, **kwargs):
-                if amount <= 1:
-                    if isinstance(params, list):
-                        amount = len(params)
-                    elif isinstance(headers, list):
-                        amount = len(headers)
-                    elif len(kwargs) > 0 and isinstance(kwargs[list(kwargs.keys())[0]], list):
-                        amount = len(kwargs[list(kwargs.keys())[0]])
+            def request_endpoint_filled(amount=1, params=None, headers=None, data=None, max_conns=10, retries=0, retry_delay=1, timeout=300, **kwargs):
                 if amount == 1:
-                    return self.request_endpoint(name, params=params, headers=headers, session=session, retries=retries,
-                                                 retry_delay=retry_delay, use_async=use_async, ssl=ssl, **kwargs)
-                elif amount > 1:
-                    return self.request_endpoints(names=[name for _ in range(amount)], params=params, headers=headers,
-                                                  session=session, retries=retries, retry_delay=retry_delay,
-                                                  use_async=use_async, ssl=ssl, **kwargs)
+                    return self.request_endpoint(name=name, params=params, headers=headers, 
+                                                data=data, retries=retries, retry_delay=retry_delay,
+                                                timeout=timeout, **kwargs)
+                else:
+                    return self.request_endpoints(amount=amount, names=name, params=params, headers=headers, 
+                                                data=data, max_conns=max_conns, retries=retries, retry_delay=retry_delay,
+                                                timeout=timeout, **kwargs)
 
             return request_endpoint_filled
 
@@ -180,17 +173,17 @@ class API:
             if isinstance(headers, list):
                 request_headers = params[i]
             if isinstance(names, list):
-                request_endpoint, method = self.endpoints[names[i]]
+                request_endpoint, request_method = self.endpoints[names[i]]
             if isinstance(endpoints, list):
                 request_endpoint = endpoints[i]
             if isinstance(data, list):
                 request_data = data[i]
 
             if request_endpoint is None: # one name, endpoint=none
-                request_endpoint, method = self.endpoints[names]
+                request_endpoint, request_method = self.endpoints[names]
 
             req = Request(request_endpoint, request_method, request_param, request_headers, request_data)
             self.key.apply(req)
             requests.append(req)
 
-        return self.session.request_bulk(requests)
+        return self.session.request_bulk(requests, max_conns=max_conns, retries=retries, retry_delay=retry_delay, timeout=timeout, **kwargs)
