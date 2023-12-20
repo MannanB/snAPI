@@ -1,3 +1,5 @@
 venv
-src/pySnAPI.egg-info
+pySnAPI.egg-info
 dist
+__pycache__
+cache_test

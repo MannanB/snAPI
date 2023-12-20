@@ -18,7 +18,8 @@ class Response:
         self.status = status
 
     def json(self):
-        return load_json(self.output)
+        if self.output:
+            return load_json(self.output)
     
     def __repr__(self):
         return f'Response({self.status})'

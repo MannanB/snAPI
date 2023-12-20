@@ -1,6 +1,8 @@
 import time
 import random
 import unittest
+import sys
+sys.path.insert(0, r'C:\Users\manna\OneDrive\Documents\snAPI\src')
 from snAPI.cache import *
 
 
@@ -34,7 +36,6 @@ class TestCaching(unittest.TestCase):
             time.sleep(0.2)
         cache.add_item('https://test.com', {'data': f'test'}, params={'x': -1}, headers={'x': -1})
         self.assertEqual(len(cache.cache), 10)  # ensure its still 10
-        print(cache.cache)
         self.assertEqual(cache.cache.get(('https://test9.com', (('x', 9),), (('x', 9),))), None)
         self.assertEqual(cache.get_item('https://test.com', params={'x':-1}, headers={'x':-1}), {'data': f'test'})
 

@@ -74,7 +74,7 @@ class MemoryCache:
                 self.cache[hashed][1] += 1
             return self.cache[hashed][0]
 
-    async def get_item_async(self, reqeust):
+    async def get_item_async(self, request):
         hashed = uuid.uuid3(uuid.NAMESPACE_DNS, request.to_hashable())
 
         if hashed in self.cache:

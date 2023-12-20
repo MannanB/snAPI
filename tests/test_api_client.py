@@ -1,4 +1,6 @@
 import unittest
+import sys
+sys.path.insert(0, r'C:\Users\manna\OneDrive\Documents\snAPI\src')
 import snAPI
 import time
 

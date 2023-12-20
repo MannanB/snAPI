@@ -18,18 +18,17 @@ class Simple(Resource):
         global x, key_counter
         parser = reqparse.RequestParser()
 
-        parser.add_argument('key', required=True)
-        parser.add_argument('q', required=False)
+        parser.add_argument('key', required=True, location='args')
+        parser.add_argument('q', required=False, location='args')
 
         args = parser.parse_args()  # parse arguments to dictionary
         if not (args["key"] in key_counter):
             key_counter[args["key"]] = 1
         else:
             key_counter[args["key"]] += 1
-        print(f'SIMPLE >> {args["q"]}:{args["key"]} at NUMBER {x}; {key_counter[args["key"]]} times')
-        x += 1
+            x += 1
 
-        return {'data': args['q']}, 200
+        return {'data': args['q']}
 
 
 class Retry(Resource):
@@ -37,22 +36,21 @@ class Retry(Resource):
         global retry_counter
         parser = reqparse.RequestParser()
 
-        parser.add_argument('key', required=True)
-        parser.add_argument('q', required=True)
+        parser.add_argument('key', required=True, location='args')
+        parser.add_argument('q', required=True, location='args')
 
         args = parser.parse_args()  # parse arguments to dictionary
-        print(f'RETRY >> Im on retry {retry_counter}!')
         retry_counter += 1
 
         if retry_counter < 3:
             return {}, 429
-        return {'data': args['q']}, 200
+        return {'data': args['q']}
 
 
 class HeadersTest(Resource):
     def get(self):
         key = request.headers.get('key')
-        return {'data': key}, 200
+        return {'data': key}
 
 
 api.add_resource(Simple, '/Simple')
@@ -60,4 +58,4 @@ api.add_resource(Retry, '/Retry')
 api.add_resource(HeadersTest, '/HeadersTest')
 
 if __name__ == '__main__':
-    app.run()  # run our Flask app
+    app.run(threaded=True, debug=True)  # run our Flask app

@@ -9,6 +9,23 @@ PARAMS = 'PARAMS'
 HEADERS = 'HEADERS'
 AUTH = 'AUTH'
 
+# api = API(key=Key(key_type=AUTH, username='a', password='b'))'
+'''
+class RotatingKey(Key):
+    def __init__(self):
+        super().__init__()
+
+class myApi(snapi.API):
+    def __init__(self, my_key):
+        super.__init__(key=snapi.Key(key=my_key))
+        self.add_endpoint("endpoint", name="test")
+
+api = myApi('abc')
+api.toggle_async()
+res = api.test(amount=5)
+
+'''
+
 class Key:
     def __init__(self, key_type=PARAMS, name=None, key=None, username=None, password=None):
         self.key_type = PARAMS
@@ -68,6 +85,8 @@ class API:
                                                 timeout=timeout, **kwargs)
 
             return request_endpoint_filled
+        else:
+            raise ValueError(f'Endpoint "{name}" does not exist')
 
     def close(self):
         self.session.close()
