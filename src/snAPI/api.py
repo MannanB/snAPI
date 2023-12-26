@@ -1,8 +1,8 @@
 import time
 import queue
 import threading
-from .sessions import *
-from .cache import MemoryCache
+from sessions import *
+from cache import MemoryCache
 from typing import Optional, Union
 
 PARAMS = 'PARAMS'
@@ -27,18 +27,37 @@ res = api.test(amount=5)
 '''
 
 class Key:
-    def __init__(self, key_type=PARAMS, name=None, key=None, username=None, password=None):
-        self.key_type = PARAMS
+    '''
+    key = snapi.Key(name="key", key="value", key_type=snapi.PARAMS/HEADERS)
+    key = snapi.Key(key="value") # Defaults to PARAMS
+    key = snapi.Key(key="value", key_type=snapi.HEADERS)
+    key = snapi.Key(key_type=snapi.AUTH, username="user", password="pass")
+    key = snapi.Key(username="user", password="pass") # Defaults to AUTH
+    '''
+    def __init__(self, name=None, key=None, key_type=PARAMS, username=None, password=None, n_uses_before_switch=None, **kwargs):
+        self.key_type = key_type
         self.name = name
         self.key = key
         self.username = username
         self.password = password
+        self.current_key = 0
+        self.n_uses = 0
+        self.n_uses_before_switch = n_uses_before_switch
 
         # remove the need to specify key_type if user and password are given
         if self.username and self.password:
             self.key_type = AUTH
 
+        if isinstance(key, list):
+            if n_uses_before_switch is None:
+                raise ValueError("You must specify n_uses_before_switch for rotating keys")
+            if self.key_type == AUTH:
+                raise ValueError("You cannot use rotating keys with http auth")
+
         if self.key_type == PARAMS or self.key_type == HEADERS:
+            if len(kwargs) == 1:
+                self.name = list(kwargs.keys())[0]
+                self.key = kwargs[self.name]
             if self.name is None:
                 raise ValueError("You must specify key name")
             elif self.key is None:
@@ -50,25 +69,36 @@ class Key:
             raise ValueError("Invalid key type")
 
     def apply(self, request):
+        key = self.key
+        # if the key is rotating, check if it needs to be
+        if self.n_uses_before_switch and self.n_uses > self.n_uses_before_switch:
+            self.n_uses = 0
+            self.current_key = (self.current_key + 1) % len(self.key)
+        # if its a rotating key, select the correct key
+        if isinstance(key, list):
+            key = key[self.current_key]
         if self.key_type == PARAMS:
-            request.params[self.name] = self.key
+            request.params[self.name] = key
         elif self.key_type == HEADERS:
-            request.headers[self.name] = self.key
+            request.headers[self.name] = key
         elif self.key_type == AUTH:
             request.auth = (self.username, self.password)
+        self.n_uses += 1
 
 class API:
-    def __init__(self, key = None, use_async = False, cache = None):
+    def __init__(self, key = None, use_async = False, cache = None, use_cache = False):
         self.endpoints = {}
         self.session = None
         self.use_async = use_async
 
         self.key = key
-
-        if cache is None:
-            self.cache = MemoryCache()
-        else:
-            self.cache = cache
+        
+        self.cache = None
+        if use_cache:
+            if cache is None:
+                self.cache = MemoryCache()
+            else:
+                self.cache = cache
 
         self.session = Session(use_async=self.use_async, cache=self.cache)
 
@@ -91,9 +121,13 @@ class API:
     def close(self):
         self.session.close()
 
-    def toggle_async(self):
-        self.use_async = not self.use_async
-        self.session.toggle_async()
+    def enable_async(self):
+        self.use_async = True
+        self.session.use_async = True
+    
+    def disable_async(self):
+        self.use_async = False
+        self.session.use_async = False
 
     def add_endpoint(self, endpoint, name = None, method=METHOD_GET):
         if name is None:
@@ -137,7 +171,7 @@ class API:
         request = Request(endpoint, method, params, headers, data)
         if self.key:
             self.key.apply(request)
-        result = self.session.request(request, retries=retries, retry_delay=retry_delay, timeout=timeout)
+        result = self.session.request(request, retries=retries, retry_delay=retry_delay, timeout=timeout, use_async=self.use_async)
         return result
 
     def request_endpoints(self, amount,
@@ -202,7 +236,22 @@ class API:
                 request_endpoint, request_method = self.endpoints[names]
 
             req = Request(request_endpoint, request_method, request_param, request_headers, request_data)
-            self.key.apply(req)
+            if self.key:
+                self.key.apply(req)
             requests.append(req)
 
-        return self.session.request_bulk(requests, max_conns=max_conns, retries=retries, retry_delay=retry_delay, timeout=timeout, **kwargs)
+        return self.session.request_bulk(requests, max_conns=max_conns, retries=retries, retry_delay=retry_delay, timeout=timeout, use_async=self.use_async, ** kwargs)
+    
+class MyAPIClient(API):
+    def __init__(self, my_key):
+        super().__init__(key=None)
+        self.add_endpoint("https://example.com/", name="get_names")
+
+
+api = MyAPIClient('apikey123')
+
+api.enable_async()
+
+api.get_names(amount=30, max_conn=3)
+
+api.close()

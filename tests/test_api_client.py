@@ -6,8 +6,7 @@ import time
 
 class TestApiClass(unittest.TestCase):
     def test_simple_request(self):
-        api = snAPI.API(key='sample_key1',
-                       key_method=snAPI.PARAMS, use_cache=True)
+        api = snAPI.API(key=snAPI.Key(key_type=snAPI.PARAMS, name='key', key='sample_key1'), use_cache=True)
         api.add_endpoint('http://127.0.0.1:5000/Simple', name='simple')
 
         test1 = api.request_endpoint(name='simple', q='simple_request')

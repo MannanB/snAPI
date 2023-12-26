@@ -45,11 +45,10 @@ class Request:
         return str((self.url, tuple(self.params.items()), tuple(self.headers.items()), tuple(self.data.item())))
 
 class Session:
-    def __init__(self, use_async = False, verify=True, cache=None, headers=None):
+    def __init__(self, use_async = False, verify=True, cache=None):
         self.use_async = use_async
         self.verify = verify
         self.cache = cache
-        self.headers = headers
         self.session = None
         self.loop = None
 
@@ -73,12 +72,12 @@ class Session:
         if self.session is None or isinstance(self.session, requests.Session):
             if self.session:
                 self.session.close()
-            self.session = aiohttp.ClientSession(headers=self.global_headers)
+            self.session = aiohttp.ClientSession()
         return self.session
 
     async def close_async(self) -> None:
-            session = await self.get_session_async()
-            await session.close()
+        session = await self.get_session_async()
+        await session.close()
 
     def close(self):
         if self.session is None:
@@ -127,7 +126,7 @@ class Session:
                 trys += 1
                 continue
             else:
-                response = Response(result, result.status_code)
+                response = Response(result.text, result.status_code)
                 if self.cache:
                     self.cache.add_item(request, response)
                 return response
@@ -138,7 +137,7 @@ class Session:
             if cached := await self.cache.get_async(request):
                 return cached
 
-        sess = self.get_session_async()
+        sess = await self.get_session_async()
         
         trys = 0
         while True:
@@ -157,10 +156,10 @@ class Session:
                     trys += 1
                     continue
                 else:
-                    response = Response(result, result.status_code)
+                    response = Response(await result.text(), result.status)
                     if self.cache:
                         await self.cache.add_item_async(request, response)
-                    return response
+            return response
 
     def request_bulk(self, requests, use_async=None, max_conns=10, **kwargs):
         '''Sends many requests. returns a list of Response objects.
@@ -184,25 +183,34 @@ class Session:
         return responses
 
     async def request_bulk_async(self, requests, max_conns, **kwargs):
+        print("Running...")
         responses = [None for _ in range(len(requests))]
         running_tasks = {}
-
+        all_done_tasks = []
         while True:
+            done_tasks = []
             for i, task in running_tasks.items():
                 if task.done():
-                    del running_tasks[i]
-                    responses[i] = await task
+                    done_tasks.append(i)
+            for i in done_tasks:
+                #print(f"Finished task {i}!")
+                del running_tasks[i]
+                responses[i] = await task
+            all_done_tasks += done_tasks
 
             if responses.count(None) == 0:
                 break
 
             for i, request in enumerate(requests):
+                if i in all_done_tasks:
+                    continue
+                
                 task = asyncio.create_task(self.request_async(request, **kwargs))
                 running_tasks[i] = task
 
                 if len(running_tasks.values()) == max_conns:
                     break
             
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(.05)
         return responses
                         
