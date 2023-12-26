@@ -242,16 +242,3 @@ class API:
 
         return self.session.request_bulk(requests, max_conns=max_conns, retries=retries, retry_delay=retry_delay, timeout=timeout, use_async=self.use_async, ** kwargs)
     
-class MyAPIClient(API):
-    def __init__(self, my_key):
-        super().__init__(key=None)
-        self.add_endpoint("https://example.com/", name="get_names")
-
-
-api = MyAPIClient('apikey123')
-
-api.enable_async()
-
-api.get_names(amount=30, max_conn=3)
-
-api.close()
