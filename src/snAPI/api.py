@@ -1,8 +1,8 @@
 import time
 import queue
 import threading
-from sessions import *
-from cache import MemoryCache
+from .sessions import *
+from .cache import MemoryCache
 from typing import Optional, Union
 
 PARAMS = 'PARAMS'
@@ -59,8 +59,8 @@ class Key:
                 self.name = list(kwargs.keys())[0]
                 self.key = kwargs[self.name]
             if self.name is None:
-                raise ValueError("You must specify key name")
-            elif self.key is None:
+                self.name = "key" # default to key
+            if self.key is None:
                 raise ValueError("You must specify key value")
         elif self.key_type == AUTH:
             if self.username is None or self.password is None:
@@ -70,10 +70,13 @@ class Key:
 
     def apply(self, request):
         key = self.key
+        self.n_uses += 1
         # if the key is rotating, check if it needs to be
-        if self.n_uses_before_switch and self.n_uses > self.n_uses_before_switch:
+        if self.n_uses_before_switch and self.n_uses >= self.n_uses_before_switch:
             self.n_uses = 0
-            self.current_key = (self.current_key + 1) % len(self.key)
+            self.current_key = (self.current_key + 1)
+            if self.current_key >= len(key):
+                self.current_key = 0
         # if its a rotating key, select the correct key
         if isinstance(key, list):
             key = key[self.current_key]
@@ -83,7 +86,7 @@ class Key:
             request.headers[self.name] = key
         elif self.key_type == AUTH:
             request.auth = (self.username, self.password)
-        self.n_uses += 1
+        
 
 class API:
     def __init__(self, key = None, use_async = False, cache = None, use_cache = False):
@@ -105,6 +108,9 @@ class API:
     def __getattr__(self, name):
         if name in self.endpoints:
             def request_endpoint_filled(amount=1, params=None, headers=None, data=None, max_conns=10, retries=0, retry_delay=1, timeout=300, **kwargs):
+                if isinstance(params, list): amount = len(params)
+                if isinstance(headers, list): amount = len(headers)
+                if isinstance(data, list): amount = len(data)
                 if amount == 1:
                     return self.request_endpoint(name=name, params=params, headers=headers, 
                                                 data=data, retries=retries, retry_delay=retry_delay,
@@ -135,8 +141,8 @@ class API:
         self.endpoints[name] = (endpoint, method)
         return endpoint
 
-    def request_endpoint(self, name = None, 
-                         endpoint = None,
+    def request_endpoint(self, endpoint=None, 
+                         name=None,
                          params = None,
                          headers = None,
                          data=None,
@@ -174,9 +180,9 @@ class API:
         result = self.session.request(request, retries=retries, retry_delay=retry_delay, timeout=timeout, use_async=self.use_async)
         return result
 
-    def request_endpoints(self, amount,
+    def request_endpoints(self, amount=None,
+                          endpoints=None,
                           names=None, 
-                          endpoints=None, 
                           params=None, 
                           headers=None,
                           data=None,
@@ -205,6 +211,8 @@ class API:
             method = METHOD_GET
 
         if params is None and len(kwargs) > 0:
+            if amount is None:
+                amount = max([len(kwargs[key]) for key in kwargs.keys() if isinstance(kwargs[key], list)])
             params = [{} for _ in range(amount)]
             for key in kwargs.keys():
                 for i in range(amount):
@@ -212,6 +220,15 @@ class API:
                         params[i][key] = kwargs[key][i]
                     else:
                         params[i][key] = kwargs[key]
+        
+        if isinstance(names, list): amount = len(names)
+        if isinstance(endpoints, list): amount = len(endpoints)
+        if isinstance(params, list): amount = len(params)
+        if isinstance(headers, list): amount = len(headers)
+        if isinstance(data, list): amount = len(data)
+
+        if amount is None:
+            raise ValueError('No amount was given. Use request_endpoint for single requests.')
 
         requests = []
         for i in range(amount):

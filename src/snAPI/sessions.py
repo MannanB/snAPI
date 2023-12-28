@@ -42,7 +42,7 @@ class Request:
 
     def to_hashable(self):
         # hashable data for efficient caching of data
-        return str((self.url, tuple(self.params.items()), tuple(self.headers.items()), tuple(self.data.item())))
+        return str((self.url, tuple(self.params.items()), tuple(self.headers.items()), tuple(self.data.items())))
 
 class Session:
     def __init__(self, use_async = False, verify=True, cache=None):
@@ -105,7 +105,7 @@ class Session:
     def request_sync(self, request, **kwargs):
         # check if request is cached before doing anything
         if self.cache:
-            if cached := self.cache.get(request):
+            if cached := self.cache.get_item(request):
                 return cached
 
         sess = self.get_session_sync()
@@ -134,7 +134,7 @@ class Session:
     async def request_async(self, request, **kwargs):
         # check if request is cached before doing anything
         if self.cache:
-            if cached := await self.cache.get_async(request):
+            if cached := await self.cache.get_item_async(request):
                 return cached
 
         sess = await self.get_session_async()
@@ -183,7 +183,6 @@ class Session:
         return responses
 
     async def request_bulk_async(self, requests, max_conns, **kwargs):
-        print("Running...")
         responses = [None for _ in range(len(requests))]
         running_tasks = {}
         all_done_tasks = []
