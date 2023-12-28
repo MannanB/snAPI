@@ -1,26 +1,25 @@
-import snapi
+import sys
+sys.path.insert(0, r'C:\Users\manna\OneDrive\Documents\Python\snAPI\snAPI\src')
 
+import snAPI
 
-class MyAPIClient(snapi.API):
-    def __init__(self, my_key):
-        super.__init__(key=snapi.Key(key=my_key))
-        self.add_endpoint("https://myapiurl.com/api/v1/get_names", name="get_names")
-        self.add_endpoint("https://myapiurl.com/api/v1/add_name", name="add_name", method="POST")
-        self.add_endpoint("https://myapiurl.com/api/v1/find_address", name="find_address")
+class MyAPIClient(snAPI.API):
+    def __init__(self):
+        super().__init__()
+        self.add_endpoint("http://127.0.0.1:5000/get_names", endpoint_name="get_names")
+        self.add_endpoint("http://127.0.0.1:5000/add_name", endpoint_name="add_name")
 
+api = MyAPIClient()
 
-api = MyAPIClient('apikey123')
-
-print(api.get_names())
+print(api.get_names().output)
 api.add_name(name="John")
 api.add_name(name="Max")
-print(api.get_names())
-
+print(api.get_names().output)
 
 huge_name_list = ['John', 'Max', 'Alex', 'Bob', 'Alice', 'Jane', 'Jill', 'Jack']
-api.toggle_async()
+api.enable_async()
 
-addresses = api.find_address(names=huge_name_list, max_conns=4)
-print(addresses)
+api.add_name(amount=len(huge_name_list), name=huge_name_list)
+print(api.get_names().output)
 
-api.toggle_async()
+api.close()

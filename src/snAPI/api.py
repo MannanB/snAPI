@@ -112,11 +112,11 @@ class API:
                 if isinstance(headers, list): amount = len(headers)
                 if isinstance(data, list): amount = len(data)
                 if amount == 1:
-                    return self.request_endpoint(name=name, params=params, headers=headers, 
+                    return self.request_endpoint(endpoint_name=name, params=params, headers=headers, 
                                                 data=data, retries=retries, retry_delay=retry_delay,
                                                 timeout=timeout, **kwargs)
                 else:
-                    return self.request_endpoints(amount=amount, names=name, params=params, headers=headers, 
+                    return self.request_endpoints(amount=amount, endpoint_names=name, params=params, headers=headers,
                                                 data=data, max_conns=max_conns, retries=retries, retry_delay=retry_delay,
                                                 timeout=timeout, **kwargs)
 
@@ -135,14 +135,14 @@ class API:
         self.use_async = False
         self.session.use_async = False
 
-    def add_endpoint(self, endpoint, name = None, method=METHOD_GET):
-        if name is None:
-            name = endpoint
-        self.endpoints[name] = (endpoint, method)
+    def add_endpoint(self, endpoint, endpoint_name=None, method=METHOD_GET):
+        if endpoint_name is None:
+            endpoint_name = endpoint
+        self.endpoints[endpoint_name] = (endpoint, method)
         return endpoint
 
     def request_endpoint(self, endpoint=None, 
-                         name=None,
+                         endpoint_name=None,
                          params = None,
                          headers = None,
                          data=None,
@@ -152,7 +152,7 @@ class API:
                          **kwargs):
         """
         Request a URL
-        :param name: (optional) A specified name for an endpoint
+        :param endpoint_name: (optional) A specified name for an endpoint
         :param endpoint: (optional) The endpoint url
         :param params: Parameters for call
         :param headers: Headers for cals
@@ -167,10 +167,10 @@ class API:
         method = METHOD_POST
         if data is None:
             method = METHOD_GET
-        if name is None and endpoint is None:
+        if endpoint_name is None and endpoint is None:
             raise ValueError('No url was given.')
         elif endpoint is None:
-            endpoint, method = self.endpoints[name]
+            endpoint, method = self.endpoints[endpoint_name]
         if params is None:
             # use kwargs as parameters
             params = kwargs
@@ -182,7 +182,7 @@ class API:
 
     def request_endpoints(self, amount=None,
                           endpoints=None,
-                          names=None, 
+                          endpoint_names=None,
                           params=None, 
                           headers=None,
                           data=None,
@@ -193,7 +193,7 @@ class API:
                           **kwargs):
         '''Request many urls at once
         :param amount: The amount of requests
-        :param names: A list of names of endpoints
+        :param endpoint_names: A list of names of endpoints
         :param endpoints: A list of Endpoint objects
         :param params: A list of parameters for each call
         :param headers: Additional headers for each call
@@ -203,7 +203,7 @@ class API:
         :return: A list of Responses
         '''
 
-        if names is None and endpoints is None:
+        if endpoint_names is None and endpoints is None:
             raise ValueError('No url(s) were given.')
 
         method = METHOD_POST
@@ -221,7 +221,7 @@ class API:
                     else:
                         params[i][key] = kwargs[key]
         
-        if isinstance(names, list): amount = len(names)
+        if isinstance(endpoint_names, list): amount = len(endpoint_names)
         if isinstance(endpoints, list): amount = len(endpoints)
         if isinstance(params, list): amount = len(params)
         if isinstance(headers, list): amount = len(headers)
@@ -242,15 +242,15 @@ class API:
                 request_param = params[i]
             if isinstance(headers, list):
                 request_headers = params[i]
-            if isinstance(names, list):
-                request_endpoint, request_method = self.endpoints[names[i]]
+            if isinstance(endpoint_names, list):
+                request_endpoint, request_method = self.endpoints[endpoint_names[i]]
             if isinstance(endpoints, list):
                 request_endpoint = endpoints[i]
             if isinstance(data, list):
                 request_data = data[i]
 
             if request_endpoint is None: # one name, endpoint=none
-                request_endpoint, request_method = self.endpoints[names]
+                request_endpoint, request_method = self.endpoints[endpoint_names]
 
             req = Request(request_endpoint, request_method, request_param, request_headers, request_data)
             if self.key:
