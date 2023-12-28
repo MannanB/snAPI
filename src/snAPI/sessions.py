@@ -42,7 +42,7 @@ class Request:
 
     def to_hashable(self):
         # hashable data for efficient caching of data
-        return str((self.url, tuple(self.params.items()), tuple(self.headers.items()), tuple(self.data.items())))
+        return str((self.url, self.method, tuple(self.params.items()), tuple(self.headers.items()), tuple(self.data.items())))
 
 class Session:
     def __init__(self, use_async = False, verify=True, cache=None):
