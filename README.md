@@ -13,7 +13,6 @@ dog_api = snAPI.API(key=snAPI.Key(api_key="very_secret123"))
 # define an endpoint as myendpoint
 dog_api.add_endpoint("https://dog.ceo/api/breeds/list/all", name="get_all_breeds")
 
- # send a request to myendpoint with parameter1 = abc123
 result = myapi.get_all_breeds()
 
 print(result.output)
