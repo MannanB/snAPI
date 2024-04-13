@@ -4,45 +4,39 @@ Overview
 SnAPI is a framework for building restful API clients in Python. Its primary goals are to provide a simple, consistent interface for interacting with restful APIs, and to provide a way to easily extend the framework to support new APIs.
 
 Sample Usage
-------------
-``
-from snapi import API
+------------::
 
-api = API('http://api.example.com/v1')
-api.add_endpoint('/users', 'get_users')
+    from snapi import API
 
-# GET /users
-output = api.get_users() # or api.request_endpoint(endpoint_name='get_users')
-print(output)
-``
+    api = API('http://api.example.com/v1')
+    api.add_endpoint('/users', 'get_users')
 
-SnAPI adds a simple interface for implementing API keys as well. API Keys may be passed through request parameters, headers, or via HTTP auth.
+    # GET /users
+    output = api.get_users() # or api.request_endpoint(endpoint_name='get_users')
+    print(output)
 
-``
-import snapi
 
-my_params_key = snapi.Key(name="key", key="value", key_type=snapi.PARAMS)
-my_headers_key = snapi.Key(name="key", key="value", key_type=snapi.HEADERS)
-my_auth_key = snapi.Key(username="user", password="pass") # Defaults to AUTH
+SnAPI adds a simple interface for implementing API keys as well. API Keys may be passed through request parameters, headers, or via HTTP auth.::
 
-api = snapi.API('http://api.example.com/v1', key=my_params_key)
-``
+    import snapi
 
-Asynchronous Requests are easily done by toggling async. This is ideal for making many requests at once.
+    my_params_key = snapi.Key(name="key", key="value", key_type=snapi.PARAMS)
+    my_headers_key = snapi.Key(name="key", key="value", key_type=snapi.HEADERS)
+    my_auth_key = snapi.Key(username="user", password="pass") # Defaults to AUTH
 
-``
-api = snapi.API('http://api.example.com/v1')
-api.add_endpoint('/search', 'search')
+    api = snapi.API('http://api.example.com/v1', key=my_params_key)
 
-api.toggle_async()
+Asynchronous Requests are easily done by toggling async. This is ideal for making many requests at once.::
 
-queries = ['query1', 'query2', 'query3']
+    api = snapi.API('http://api.example.com/v1')
+    api.add_endpoint('/search', 'search')
 
-api.search(amount=3, query=queries) # will return a list of responses
-``
+    api.toggle_async()
 
-Asynchronous requests with rate limiting. The following will only allow a maximum of 2 connections to the API at once. This defaults to 10.
+    queries = ['query1', 'query2', 'query3']
 
-``
-api.search(amount=3, query=queries, max_conns=2) # will return a list of responses
-``
+    api.search(amount=3, query=queries) # will return a list of responses
+
+Asynchronous requests with rate limiting. The following will only allow a maximum of 2 connections to the API at once. This defaults to 10.::
+
+    api.search(amount=3, query=queries, max_conns=2) # will return a list of responses
