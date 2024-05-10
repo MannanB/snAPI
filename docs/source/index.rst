@@ -55,7 +55,7 @@ Asynchronous requests with rate limiting. The following will only allow a maximu
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Contents
 
    basic_usage
    advanced_usage
