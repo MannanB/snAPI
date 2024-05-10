@@ -3,6 +3,8 @@ A library for WebAPI client frameworking
 
 The purpose of the library is to get rid of any boilerplate that comes with requesting or caching any kind of web API.
 
+Check out the docs [here](https://pysnapi.readthedocs.io/en/latest/basic_usage.html)
+
 # Sample usage
 
 ```
