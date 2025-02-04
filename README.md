@@ -1,5 +1,5 @@
 # snAPI
-A library for WebAPI client frameworking
+A library for seamlessly and asynchronously calling Web APIs
 
 The purpose of the library is to get rid of any boilerplate that comes with requesting or caching any kind of web API.
 
